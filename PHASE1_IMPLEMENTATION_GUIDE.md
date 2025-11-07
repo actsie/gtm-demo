@@ -1,5 +1,20 @@
 # Phase 1 Implementation Guide: Automated Follow-ups
 
+## Status
+
+**Phase 1: COMPLETE** ✅
+- Airtable schema updated (Outbox table + FollowupTemplates table)
+- n8n Reply Detection workflow deployed and running (every 4 hours)
+- n8n Follow-up Automation workflow deployed and running (daily at 9 AM)
+- Cold email workflow updated to initialize follow-up fields
+- All workflows tested and operational
+
+**Phase 2: IN PROGRESS** 🚧
+- Building Follow-ups tab in GTM Console UI
+- See "Phase 2 Implementation Details" section below
+
+---
+
 ## Overview
 
 This guide walks you through implementing automated follow-up detection and sending in n8n. Complete each section in order.
@@ -793,12 +808,56 @@ Based on results, tweak:
 
 ---
 
-## Next Steps (Phase 2)
+## Phase 2 Implementation Details
 
-After Phase 1 is stable for 1 week:
-- Add "Follow-ups" tab to GTM Console UI
-- Build n8n endpoints for manual override
-- Implement reply viewing modal
+### Overview
+Add a "Follow-ups" tab to the GTM Console UI for viewing and managing automated follow-up campaigns.
+
+### Features to Build
+
+**1. Follow-ups Tab UI**
+- Full-width table view showing all emails in follow-up sequences
+- Columns: email, company, subject, status, follow-up stage, days since sent, reply snippet
+- Filter by stage (initial, follow_up_1, follow_up_2, follow_up_3, replied, closed)
+- Filter by status (sent, replied, closed)
+- Stats banner: total emails, awaiting replies, reply rate, breakdown by stage
+
+**2. Email Thread Modal**
+- View original email + all follow-ups sent
+- Display reply details (if received)
+- Timeline visualization of email chain
+- Manual action buttons: Mark Closed, Send Now, View in Airtable
+
+**3. Manual Override Actions**
+- Mark as closed (stop follow-up sequence)
+- Mark as replied (if reply detection missed it)
+- Send immediate follow-up (skip waiting period)
+
+### n8n Endpoints Required
+
+Build these 3 new webhook endpoints in n8n:
+
+**`/webhook/followups-list` (POST)**
+- Query Airtable Outbox with filters
+- Calculate stats (reply rate, stage breakdown)
+- Return paginated results
+
+**`/webhook/followup-details` (POST)**
+- Fetch full email thread using `parent_email_id` links
+- Return original email, all follow-ups, and reply data
+
+**`/webhook/followup-action` (POST)**
+- Handle manual override actions
+- Update Airtable records
+- Trigger immediate sends if needed
+
+### Implementation Status
+- [x] TypeScript types added
+- [x] FollowUpsTab component created
+- [x] EmailThreadModal component created
+- [x] Tab integrated into App.tsx
+- [ ] n8n endpoints built and tested (needs n8n workflow setup)
+- [ ] End-to-end testing complete (pending n8n endpoints)
 
 ---
 

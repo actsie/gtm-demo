@@ -11,7 +11,7 @@ export interface Settings {
 
 export interface RecentRun {
   id: string;
-  tab: 'leads' | 'drafts' | 'email' | 'prospects';
+  tab: 'leads' | 'drafts' | 'email' | 'prospects' | 'followups';
   args: Record<string, unknown>;
   ok: boolean;
   ts: string;
@@ -139,6 +139,97 @@ export interface EmailSendResponse {
   };
   links?: {
     airtable_url?: string;
+  };
+}
+
+// Follow-ups types
+export type FollowUpStage =
+  | 'initial'
+  | 'follow_up_1'
+  | 'follow_up_2'
+  | 'follow_up_3'
+  | 'replied'
+  | 'closed';
+
+export interface FollowUpRow {
+  id: string;
+  email: string;
+  company: string;
+  subject: string;
+  status: 'sent' | 'replied' | 'closed';
+  follow_up_stage: FollowUpStage;
+  follow_up_count: number;
+  sent_at: string;
+  last_followup_sent?: string;
+  replied_at?: string;
+  reply_snippet?: string;
+  days_since_sent: number;
+  days_since_last_activity: number;
+  airtable_url?: string;
+}
+
+export interface EmailInThread {
+  id: string;
+  subject: string;
+  body: string;
+  sent_at: string;
+  stage: FollowUpStage;
+}
+
+export interface EmailThread {
+  original: EmailInThread;
+  followups: EmailInThread[];
+  reply?: {
+    replied_at: string;
+    reply_body: string;
+    reply_snippet: string;
+  };
+}
+
+export interface FollowUpsListRequest extends Record<string, unknown> {
+  limit?: number;
+  offset?: number;
+  stage_filter?: FollowUpStage | 'all';
+  status_filter?: 'all' | 'sent' | 'replied' | 'closed';
+}
+
+export interface FollowUpsListResponse {
+  ok: boolean;
+  data: {
+    followups: FollowUpRow[];
+    total: number;
+    stats: {
+      total: number;
+      awaiting_reply: number;
+      replied: number;
+      reply_rate: number;
+      by_stage: Record<FollowUpStage, number>;
+    };
+  };
+}
+
+export interface FollowUpDetailsRequest extends Record<string, unknown> {
+  outbox_id: string;
+}
+
+export interface FollowUpDetailsResponse {
+  ok: boolean;
+  data: {
+    thread: EmailThread;
+  };
+}
+
+export interface FollowUpActionRequest extends Record<string, unknown> {
+  outbox_id: string;
+  action: 'mark_closed' | 'mark_replied' | 'send_now';
+  note?: string;
+}
+
+export interface FollowUpActionResponse {
+  ok: boolean;
+  data: {
+    success: boolean;
+    message: string;
   };
 }
 

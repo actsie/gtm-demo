@@ -5,6 +5,7 @@ import LeadsTab from './components/LeadsTab';
 import DraftsTab from './components/DraftsTab';
 import EmailTab from './components/EmailTab';
 import ProspectsTab from './components/ProspectsTab';
+import FollowUpsTab from './components/FollowUpsTab';
 import RecentRuns from './components/RecentRuns';
 
 export default function App() {
@@ -151,6 +152,17 @@ export default function App() {
         >
           📋 Prospects
         </button>
+
+        <button
+          onClick={() => setActiveTab('followups')}
+          className={`px-6 py-3 font-medium transition-colors border-b-2 ${
+            activeTab === 'followups'
+              ? 'border-primary-600 text-primary-600 dark:text-primary-400'
+              : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+          }`}
+        >
+          📨 Follow-ups
+        </button>
       </div>
 
       {/* Main Content Area */}
@@ -159,6 +171,7 @@ export default function App() {
         {activeTab === 'drafts' && <DraftsTab />}
         {activeTab === 'email' && <EmailTab />}
         {activeTab === 'prospects' && <ProspectsTab />}
+        {activeTab === 'followups' && <FollowUpsTab />}
       </div>
 
       {/* Modals and Panels */}

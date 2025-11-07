@@ -9,7 +9,7 @@
     "build": "tsc && vite build && electron-builder",
     "build:dir": "tsc && vite build && electron-builder --dir",
     "preview": "vite preview",
-    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && mkdir -p dist-electron && cp src/main/preload.cjs dist-electron/preload.cjs && electron .\"",
+    "electron:dev": "vite",
     "electron:build": "tsc && vite build && tsc -p tsconfig.electron.json && electron-builder",
     "start": "electron .",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",

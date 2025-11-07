@@ -8,7 +8,7 @@ interface AppState {
   keytarAvailable: boolean;
 
   // UI state
-  activeTab: 'leads' | 'drafts' | 'email' | 'prospects';
+  activeTab: 'leads' | 'drafts' | 'email' | 'prospects' | 'followups';
   settingsModalOpen: boolean;
   recentRunsPanelOpen: boolean;
   theme: 'light' | 'dark';
@@ -20,7 +20,7 @@ interface AppState {
   setSettings: (settings: Settings) => void;
   setSecret: (secret: string) => void;
   setKeytarAvailable: (available: boolean) => void;
-  setActiveTab: (tab: 'leads' | 'drafts' | 'email' | 'prospects') => void;
+  setActiveTab: (tab: 'leads' | 'drafts' | 'email' | 'prospects' | 'followups') => void;
   setSettingsModalOpen: (open: boolean) => void;
   setRecentRunsPanelOpen: (open: boolean) => void;
   setTheme: (theme: 'light' | 'dark') => void;
