@@ -120,6 +120,12 @@ export default function DraftThreadModal({
     await onAction(draftId, 'skip');
   };
 
+  const handleRegenerate = async (draftId: string) => {
+    // This will need a new endpoint on Mac Mini to regenerate the follow-up
+    // For now, we'll show a placeholder - you'll need to implement the backend
+    await onAction(draftId, 'regenerate');
+  };
+
   const handleCloseAttempt = () => {
     const hasUnsavedChanges = Object.values(editStates).some(state => state.hasChanges);
     if (hasUnsavedChanges) {
@@ -320,6 +326,13 @@ export default function DraftThreadModal({
                                 className="btn-primary text-sm"
                               >
                                 Mark as Ready
+                              </button>
+                              <button
+                                onClick={() => handleRegenerate(draft.id)}
+                                disabled={processing}
+                                className="btn-secondary text-sm"
+                              >
+                                Regenerate
                               </button>
                               <div className="relative group">
                                 <button

@@ -169,6 +169,17 @@ export default function FollowUpsTab() {
           // Update the draft status locally
           const updatedDrafts = selectedThreadDrafts.map(draft => {
             if (draft.id === draftId) {
+              // Handle regenerate action - use AI-generated content from backend
+              if (action === 'regenerate' && result.data.updated_draft) {
+                return {
+                  ...draft,
+                  subject: result.data.updated_draft.subject,
+                  body: result.data.updated_draft.body,
+                  is_edited: false, // Fresh AI generation
+                };
+              }
+
+              // Handle other actions
               return {
                 ...draft,
                 status: action === 'mark_ready' || action === 'edit_and_save' ? 'ready' as const :

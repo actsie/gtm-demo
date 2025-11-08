@@ -243,6 +243,101 @@ Completely redesigned the thread view modal to make draft editing instant and in
 
 ---
 
+## Feature: Regenerate Individual Follow-up Drafts
+
+### 🎯 What Was Built
+
+Added a "Regenerate" button that lets you create fresh AI-generated content for any individual follow-up draft. Don't like the AI's first attempt at Follow-up #2? Just click Regenerate and get completely new subject line and email body while keeping Follow-ups #1 and #3 unchanged.
+
+- **Individual Regeneration**: Regenerate only the specific follow-up you want (e.g., just FU#2)
+- **Fresh AI Content**: Gets brand new subject and body from AI using the same template
+- **Instant Updates**: See the new content immediately without closing the modal
+- **Multiple Attempts**: Can regenerate multiple times until you get content you like
+- **Status Preserved**: Draft stays in "Pending Review" status after regenerating
+
+### 🧪 How to Test This Feature
+
+**Follow these exact steps:**
+
+1. **Open a Thread with Pending Drafts**
+   - Go to Follow-ups tab → Pending Review
+   - Find a prospect with follow-up drafts
+   - Click the "View Thread" button
+   - **You should see**: A large modal with all 3 follow-ups displayed
+
+2. **Find the Regenerate Button**
+   - Look at Follow-up #2 (or any draft with status "Pending Review")
+   - At the bottom of that draft, you'll see two buttons:
+     - Green "Mark as Ready" button on the left
+     - Blue "Regenerate" button next to it
+   - **Button only appears**: When draft status is "Pending Review" and you haven't made edits
+
+3. **Click Regenerate**
+   - Click the blue "Regenerate" button on Follow-up #2
+   - **Expected result**: A loading state appears briefly (button disabled)
+   - Wait 2-5 seconds for AI to generate new content
+
+4. **See the New Content**
+   - **You should see**:
+     - The subject line changes to something completely different
+     - The email body is rewritten with fresh content
+     - A green success toast appears: "Draft regenerated successfully"
+     - The draft still shows "Pending Review" badge (yellow)
+     - Follow-ups #1 and #3 are completely unchanged
+
+5. **Compare the Changes**
+   - Notice the subject is different from what it was before
+   - The email body has different wording and approach
+   - But the email still follows the same template (same strategy, just different execution)
+
+6. **Regenerate Again (Optional)**
+   - If you still don't like the new content, click "Regenerate" again
+   - **Expected result**: Another fresh version is generated
+   - You can do this as many times as you want
+
+7. **Edit After Regenerating**
+   - After regenerating, you can still edit the new content
+   - Make manual tweaks to the subject or body
+   - Click "Save & Mark as Ready" when satisfied
+
+8. **Test with Other Follow-ups**
+   - Try regenerating Follow-up #1 (Day 3)
+   - **Expected result**: Only FU#1 changes, FU#2 and FU#3 stay the same
+   - Try regenerating Follow-up #3 (Day 14)
+   - **Expected result**: Only FU#3 changes
+
+### 📝 Technical Details (for reference)
+
+**Frontend Changes:**
+- `src/renderer/components/DraftThreadModal.tsx` - Added Regenerate button and `handleRegenerate` function
+- `src/renderer/components/FollowUpsTab.tsx` - Updated `handleDraftAction` to extract and apply AI-generated content from backend response
+
+**Backend Changes (n8n):**
+- Added new "regenerate" branch to `/webhook/draft-action` endpoint
+- Workflow steps:
+  1. Validate input (added 'regenerate' to allowed actions)
+  2. Get draft by ID (using "Get by ID" operation)
+  3. Get original email by ID (for context)
+  4. Get follow-up template (filtered by stage)
+  5. Prepare AI prompt with placeholders filled
+  6. Call Anthropic AI to generate fresh content
+  7. Parse AI response (supports both Anthropic and OpenAI formats)
+  8. Update draft in Airtable
+  9. Return success response with new subject/body
+
+**Documentation Created:**
+- `output_doc/N8N_REGENERATE_ENDPOINT_GUIDE.md` - Complete setup guide for n8n
+- `output_doc/REGENERATE_LESSONS_LEARNED.md` - All mistakes made and fixes (7 major issues documented)
+
+**Key Technical Decisions:**
+- Use "Get by ID" instead of Search for single record lookups
+- Use Code nodes instead of Set nodes for JSON responses
+- Support both Anthropic and OpenAI AI response formats
+- Return updated content in backend response for instant UI updates
+- Enable "Always Output Data" on all Airtable nodes
+
+---
+
 ## 🚀 How to Run This Project
 
 **Automatic (Recommended):**
@@ -276,9 +371,35 @@ Completely redesigned the thread view modal to make draft editing instant and in
 
 ## 📊 Session Summary
 
-- **Total features built**: 3 major UX improvements
+- **Total features built**: 5 major improvements
+  1. Sent status badge and improved success messages
+  2. Thread view for follow-up drafts
+  3. Always-editable mode with smart buttons
+  4. Fixed Sent Emails View Thread 500 error
+  5. Regenerate individual follow-up drafts
 - **Total files modified**: 3 (ProspectsTab, FollowUpsTab, DraftThreadModal)
-- **New files created**: 1 (DraftThreadModal component)
+- **New files created**: 3 (DraftThreadModal component, N8N guide, Lessons learned doc)
+- **Backend workflows enhanced**: 1 (/webhook/draft-action with regenerate support)
+- **Bugs fixed**: 2 (Sent Emails 500 error, 8 n8n integration issues)
+- **Documentation created**: 2 comprehensive guides
 - **Emojis removed**: All (cleaner, more professional UI)
-- **User experience**: Dramatically improved with instant editing and smart buttons
-- **Estimated time to test**: 10 minutes (full flow)
+- **User experience**: Dramatically improved with instant editing, smart buttons, and AI regeneration
+- **Estimated time to test**: 15 minutes (full flow including regenerate)
+- **Status**: READY TO COMMIT
+
+---
+
+## Git Commit Details
+
+**Commit Hash**: 6b2e0f4
+**Commit Message**: Add thread view UX improvements and remove emojis
+**Files Changed**: 5 files
+**Pushed To**: origin/main
+
+**Key Changes**:
+- Thread view groups all 3 follow-ups per prospect
+- Always-editable mode with smart action buttons
+- Modal stays open after actions (workflow improvement)
+- Unsaved changes and skip confirmations
+- All emojis removed for professional UI
+- Bug fixes for button duplication and state management
