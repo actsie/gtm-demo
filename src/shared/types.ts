@@ -233,6 +233,61 @@ export interface FollowUpActionResponse {
   };
 }
 
+// Follow-up Drafts types (FollowupQueue table)
+export interface Draft {
+  id: string;
+  prospect_id: string;
+  email: string;
+  company: string;
+  stage: 'follow_up_1' | 'follow_up_2' | 'follow_up_3';
+  subject: string;
+  body: string;
+  original_subject: string;
+  original_body: string;
+  status: 'needs_review' | 'ready' | 'sent' | 'skipped' | 'replied';
+  generated_at: string;
+  due_date: string;
+  sent_at?: string;
+  is_edited: boolean;
+  days_until_due?: number;
+  is_overdue?: boolean;
+  is_due_today?: boolean;
+}
+
+export interface DraftsListRequest extends Record<string, unknown> {
+  status_filter?: 'needs_review' | 'ready' | 'all';
+  limit?: number;
+  offset?: number;
+}
+
+export interface DraftsListResponse {
+  ok: boolean;
+  data: {
+    drafts: Draft[];
+    stats: {
+      pending_review: number;
+      approved: number;
+      due_today: number;
+      overdue: number;
+    };
+  };
+}
+
+export interface DraftActionRequest extends Record<string, unknown> {
+  draft_id: string;
+  action: 'mark_ready' | 'skip' | 'edit_and_save';
+  subject?: string;
+  body?: string;
+}
+
+export interface DraftActionResponse {
+  ok: boolean;
+  data: {
+    success: boolean;
+    message: string;
+  };
+}
+
 // IPC Channel names
 export const IPC_CHANNELS = {
   SETTINGS_GET: 'settings.get',
