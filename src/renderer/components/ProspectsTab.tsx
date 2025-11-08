@@ -206,6 +206,11 @@ export default function ProspectsTab() {
         };
         await window.electronAPI.addRecentRun(run);
         addRecentRun(run);
+
+        // Remove prospect from list immediately (they're now contacted)
+        setProspects(prevProspects =>
+          prevProspects.filter(p => p.id !== currentDraft.prospectId)
+        );
       } else if (data.data.reason === 'already_sent_recently') {
         showToast('info', 'Skipped (duplicate guard - already contacted recently)');
       } else {
@@ -213,7 +218,7 @@ export default function ProspectsTab() {
       }
 
       setEditorOpen(false);
-      loadProspects(); // Refresh list
+      loadProspects(); // Refresh list in background
     } catch (e) {
       const errorMsg = (e as Error).message;
       showToast('error', `Send failed: ${errorMsg}`);
@@ -288,7 +293,7 @@ export default function ProspectsTab() {
 
       {/* Table */}
       {!loading && prospects.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-auto max-h-[calc(100vh-240px)]">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>

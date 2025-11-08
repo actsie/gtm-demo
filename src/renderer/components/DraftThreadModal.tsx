@@ -330,7 +330,7 @@ export default function DraftThreadModal({
                               <button
                                 onClick={() => handleRegenerate(draft.id)}
                                 disabled={processing}
-                                className="btn-secondary text-sm"
+                                className="px-6 py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                               >
                                 Regenerate
                               </button>
