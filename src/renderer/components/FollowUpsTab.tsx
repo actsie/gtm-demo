@@ -29,6 +29,8 @@ export default function FollowUpsTab() {
     due_today: 0,
     overdue: 0,
   });
+  const [draftStatusFilter, setDraftStatusFilter] = useState<'needs_review' | 'ready' | 'all'>('needs_review');
+  const [draftUrgencyFilter, setDraftUrgencyFilter] = useState<'all' | 'due_today' | 'overdue'>('all');
   const [draftsLoading, setDraftsLoading] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
@@ -77,7 +79,8 @@ export default function FollowUpsTab() {
 
     try {
       const result = await apiCall('/webhook/drafts-list', {
-        status_filter: 'needs_review',
+        status_filter: draftStatusFilter,
+        urgency_filter: draftUrgencyFilter,
         limit: 100,
         offset: 0,
       });
@@ -233,6 +236,13 @@ export default function FollowUpsTab() {
     }
   }, [stageFilter, statusFilter]);
 
+  // Reload when draft filters change
+  useEffect(() => {
+    if (activeTab === 'pending') {
+      loadDrafts();
+    }
+  }, [draftStatusFilter, draftUrgencyFilter]);
+
   // Helper to format stage label
   const formatStage = (stage: FollowUpStage): string => {
     const labels: Record<FollowUpStage, string> = {
@@ -317,24 +327,80 @@ export default function FollowUpsTab() {
       {/* Pending Review Tab */}
       {activeTab === 'pending' && (
         <>
-          {/* Draft Stats Banner */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          {/* Draft Stats Banner - Clickable Filters */}
+          <div className="grid grid-cols-5 gap-4 mb-6">
+            <button
+              onClick={() => {
+                setDraftStatusFilter('all');
+                setDraftUrgencyFilter('all');
+              }}
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-left transition-all hover:shadow-md ${
+                draftStatusFilter === 'all' && draftUrgencyFilter === 'all'
+                  ? 'ring-2 ring-primary-500 dark:ring-primary-400'
+                  : ''
+              }`}
+            >
+              <div className="text-sm text-gray-600 dark:text-gray-400">All Drafts</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {draftStats.pending_review + draftStats.approved}
+              </div>
+            </button>
+            <button
+              onClick={() => {
+                setDraftStatusFilter('needs_review');
+                setDraftUrgencyFilter('all');
+              }}
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-left transition-all hover:shadow-md ${
+                draftStatusFilter === 'needs_review' && draftUrgencyFilter === 'all'
+                  ? 'ring-2 ring-primary-500 dark:ring-primary-400'
+                  : ''
+              }`}
+            >
               <div className="text-sm text-gray-600 dark:text-gray-400">Pending Review</div>
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{draftStats.pending_review}</div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            </button>
+            <button
+              onClick={() => {
+                setDraftStatusFilter('ready');
+                setDraftUrgencyFilter('all');
+              }}
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-left transition-all hover:shadow-md ${
+                draftStatusFilter === 'ready' && draftUrgencyFilter === 'all'
+                  ? 'ring-2 ring-primary-500 dark:ring-primary-400'
+                  : ''
+              }`}
+            >
               <div className="text-sm text-gray-600 dark:text-gray-400">Approved & Ready</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{draftStats.approved}</div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{draftStats.approved}</div>
+            </button>
+            <button
+              onClick={() => {
+                setDraftStatusFilter('all');
+                setDraftUrgencyFilter('due_today');
+              }}
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-left transition-all hover:shadow-md ${
+                draftUrgencyFilter === 'due_today'
+                  ? 'ring-2 ring-yellow-500 dark:ring-yellow-400'
+                  : ''
+              }`}
+            >
               <div className="text-sm text-gray-600 dark:text-gray-400">Due Today</div>
               <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{draftStats.due_today}</div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            </button>
+            <button
+              onClick={() => {
+                setDraftStatusFilter('all');
+                setDraftUrgencyFilter('overdue');
+              }}
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 text-left transition-all hover:shadow-md ${
+                draftUrgencyFilter === 'overdue'
+                  ? 'ring-2 ring-red-500 dark:ring-red-400'
+                  : ''
+              }`}
+            >
               <div className="text-sm text-gray-600 dark:text-gray-400">Overdue</div>
               <div className="text-2xl font-bold text-red-600 dark:text-red-400">{draftStats.overdue}</div>
-            </div>
+            </button>
           </div>
 
           {/* Toast */}

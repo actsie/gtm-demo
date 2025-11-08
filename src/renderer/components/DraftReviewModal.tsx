@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Draft } from '../../shared/types';
 
 interface DraftReviewModalProps {
@@ -20,6 +20,14 @@ export default function DraftReviewModal({
   const [body, setBody] = useState(draft.body);
   const [showOriginal, setShowOriginal] = useState(false);
   const [edited, setEdited] = useState(false);
+
+  // Update state when draft changes (fixes bug where modal shows same content for all drafts)
+  useEffect(() => {
+    setSubject(draft.subject);
+    setBody(draft.body);
+    setEdited(false);
+    setShowOriginal(false);
+  }, [draft.id]);
 
   if (!isOpen) return null;
 

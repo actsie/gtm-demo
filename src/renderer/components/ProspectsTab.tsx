@@ -177,6 +177,11 @@ export default function ProspectsTab() {
       // Debug: Log the full response to see what we're getting
       console.log('Send email response:', JSON.stringify(data, null, 2));
 
+      // Handle empty or invalid responses
+      if (!data || typeof data !== 'object' || !data.data) {
+        throw new Error('Invalid response from email endpoint');
+      }
+
       if (data.data.sent) {
         showToast('success', `Email sent to ${currentDraft.email} ✅`);
 
