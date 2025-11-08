@@ -183,7 +183,7 @@ export default function ProspectsTab() {
       }
 
       if (data.data.sent) {
-        showToast('success', `Email sent to ${currentDraft.email} ✅`);
+        showToast('success', 'Successfully sent and created 3 follow-up drafts');
 
         if (data.links?.airtable_url) {
           console.log('Airtable URL:', data.links.airtable_url);
@@ -245,7 +245,7 @@ export default function ProspectsTab() {
           disabled={loading}
           className="btn-secondary"
         >
-          {loading ? '⏳ Loading...' : '🔄 Refresh'}
+          {loading ? 'Loading...' : 'Refresh'}
         </button>
       </div>
 
@@ -276,7 +276,7 @@ export default function ProspectsTab() {
       {/* Empty State */}
       {!loading && prospects.length === 0 && !error && (
         <div className="text-center py-12">
-          <div className="text-gray-400 dark:text-gray-500 text-5xl mb-4">📋</div>
+          <div className="text-gray-400 dark:text-gray-500 text-5xl mb-4">—</div>
           <p className="text-gray-600 dark:text-gray-400 font-medium mb-2">
             No prospects found
           </p>
@@ -323,15 +323,15 @@ export default function ProspectsTab() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
-                      className={`px-2 py-1 text-xs rounded-full ${
+                      className={`px-2.5 py-1 text-xs font-medium rounded-full ${
                         prospect.status === 'replied'
-                          ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                          ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 ring-1 ring-green-600 dark:ring-green-400'
                           : prospect.status === 'contacted'
-                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 ring-1 ring-blue-600 dark:ring-blue-400'
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                       }`}
                     >
-                      {prospect.status || 'new'}
+                      {prospect.status === 'contacted' ? 'Sent' : prospect.status === 'replied' ? 'Replied' : 'New'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
@@ -340,7 +340,7 @@ export default function ProspectsTab() {
                       disabled={loading}
                       className="btn-primary text-xs py-2 px-4"
                     >
-                      ✍️ Generate Draft
+                      Generate Draft
                     </button>
                   </td>
                 </tr>

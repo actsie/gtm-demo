@@ -12,6 +12,7 @@ import {
 import { useAppStore } from '../store';
 import EmailThreadModal from './EmailThreadModal';
 import DraftReviewModal from './DraftReviewModal';
+import DraftThreadModal from './DraftThreadModal';
 
 type TabType = 'pending' | 'sent';
 
@@ -35,6 +36,10 @@ export default function FollowUpsTab() {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
   const [processing, setProcessing] = useState(false);
+
+  // Thread modal state
+  const [draftThreadModalOpen, setDraftThreadModalOpen] = useState(false);
+  const [selectedThreadDrafts, setSelectedThreadDrafts] = useState<Draft[]>([]);
 
   // Sent Emails State (existing)
   const [followups, setFollowUps] = useState<FollowUpRow[]>([]);
@@ -158,8 +163,32 @@ export default function FollowUpsTab() {
 
       if (result.ok && result.data?.success) {
         showToast('success', result.data.message || 'Draft updated');
-        setReviewModalOpen(false);
-        loadDrafts(); // Refresh list
+
+        // Update local draft state immediately for thread modal
+        if (draftThreadModalOpen && selectedThreadDrafts.length > 0) {
+          // Update the draft status locally
+          const updatedDrafts = selectedThreadDrafts.map(draft => {
+            if (draft.id === draftId) {
+              return {
+                ...draft,
+                status: action === 'mark_ready' || action === 'edit_and_save' ? 'ready' as const :
+                        action === 'skip' ? 'skipped' as const : draft.status,
+                subject: updates?.subject || draft.subject,
+                body: updates?.body || draft.body,
+                is_edited: updates ? true : draft.is_edited,
+              };
+            }
+            return draft;
+          });
+          setSelectedThreadDrafts(updatedDrafts);
+
+          // Refresh list in background (don't close modal)
+          loadDrafts();
+        } else {
+          // For single draft review modal, close it
+          setReviewModalOpen(false);
+          loadDrafts();
+        }
       } else {
         throw new Error(result.data?.message || 'Action failed');
       }
@@ -169,6 +198,41 @@ export default function FollowUpsTab() {
     } finally {
       setProcessing(false);
     }
+  };
+
+  // Group drafts by prospect (for thread view)
+  const groupDraftsByProspect = () => {
+    const grouped: Record<string, Draft[]> = {};
+    drafts.forEach(draft => {
+      const key = draft.prospect_id || `${draft.email}-${draft.company}`;
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+      grouped[key].push(draft);
+    });
+    return Object.values(grouped);
+  };
+
+  // Open thread modal with drafts for a specific prospect
+  const openThreadModal = (prospectDrafts: Draft[]) => {
+    setSelectedThreadDrafts(prospectDrafts);
+    setDraftThreadModalOpen(true);
+  };
+
+  // Get status summary for a prospect
+  const getProspectStatusSummary = (prospectDrafts: Draft[]) => {
+    const pending = prospectDrafts.filter(d => d.status === 'needs_review').length;
+    const ready = prospectDrafts.filter(d => d.status === 'ready').length;
+    const sent = prospectDrafts.filter(d => d.status === 'sent').length;
+    const skipped = prospectDrafts.filter(d => d.status === 'skipped').length;
+
+    const parts: string[] = [];
+    if (pending > 0) parts.push(`${pending} pending`);
+    if (ready > 0) parts.push(`${ready} ready`);
+    if (sent > 0) parts.push(`${sent} sent`);
+    if (skipped > 0) parts.push(`${skipped} skipped`);
+
+    return parts.join(', ') || 'No drafts';
   };
 
   // View email thread
@@ -290,7 +354,7 @@ export default function FollowUpsTab() {
             disabled={draftsLoading || loading}
             className="btn-secondary"
           >
-            {(draftsLoading || loading) ? '⏳ Loading...' : '🔄 Refresh'}
+            {(draftsLoading || loading) ? 'Loading...' : 'Refresh'}
           </button>
         </div>
 
@@ -304,7 +368,7 @@ export default function FollowUpsTab() {
                 : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
             }`}
           >
-            📋 Pending Review
+            Pending Review
             {draftStats.pending_review > 0 && (
               <span className="ml-2 px-2 py-0.5 bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 rounded-full text-xs">
                 {draftStats.pending_review}
@@ -319,7 +383,7 @@ export default function FollowUpsTab() {
                 : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
             }`}
           >
-            📧 Sent Emails
+            Sent Emails
           </button>
         </div>
       </div>
@@ -430,7 +494,7 @@ export default function FollowUpsTab() {
           {/* Empty State */}
           {!draftsLoading && drafts.length === 0 && (
             <div className="text-center py-12">
-              <div className="text-gray-400 dark:text-gray-500 text-5xl mb-4">✅</div>
+              <div className="text-gray-400 dark:text-gray-500 text-5xl mb-4">—</div>
               <p className="text-gray-600 dark:text-gray-400 font-medium mb-2">
                 No drafts pending review
               </p>
@@ -440,70 +504,62 @@ export default function FollowUpsTab() {
             </div>
           )}
 
-          {/* Draft Cards */}
+          {/* Thread View - Grouped by Prospect */}
           {!draftsLoading && drafts.length > 0 && (
             <div className="space-y-3">
-              {drafts.map((draft) => (
-                <div
-                  key={draft.id}
-                  className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 ${
-                    draft.is_overdue
-                      ? 'border-red-500'
-                      : draft.is_due_today
-                      ? 'border-yellow-500'
-                      : 'border-blue-500'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                          {draft.company}
-                        </h3>
-                        <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded-full text-xs font-medium">
-                          {getDraftStageLabel(draft.stage)}
-                        </span>
-                        {draft.is_edited && (
-                          <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-full text-xs">
-                            ✏️ Edited
+              {groupDraftsByProspect().map((prospectDrafts) => {
+                const firstDraft = prospectDrafts[0];
+                const hasOverdue = prospectDrafts.some(d => d.is_overdue);
+                const hasDueToday = prospectDrafts.some(d => d.is_due_today);
+
+                return (
+                  <div
+                    key={firstDraft.prospect_id || `${firstDraft.email}-${firstDraft.company}`}
+                    className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 ${
+                      hasOverdue
+                        ? 'border-red-500'
+                        : hasDueToday
+                        ? 'border-yellow-500'
+                        : 'border-purple-500'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                            {firstDraft.company}
+                          </h3>
+                          <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded-full text-xs font-medium">
+                            {prospectDrafts.length} follow-up{prospectDrafts.length !== 1 ? 's' : ''}
                           </span>
-                        )}
+                          {hasOverdue && (
+                            <span className="px-2 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded-full text-xs font-medium">
+                              Overdue
+                            </span>
+                          )}
+                          {!hasOverdue && hasDueToday && (
+                            <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-full text-xs font-medium">
+                              Due Today
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          To: {firstDraft.email}
+                        </div>
+                        <div className="text-sm text-gray-700 dark:text-gray-300">
+                          <strong>Status:</strong> {getProspectStatusSummary(prospectDrafts)}
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        To: {draft.email}
-                      </div>
-                      <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-                        <strong>Subject:</strong> {draft.subject}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        <strong className={
-                          draft.is_overdue
-                            ? 'text-red-600 dark:text-red-400'
-                            : draft.is_due_today
-                            ? 'text-yellow-600 dark:text-yellow-400'
-                            : ''
-                        }>
-                          {draft.is_overdue
-                            ? `⚠️ Overdue by ${Math.abs(draft.days_until_due!)} days`
-                            : draft.is_due_today
-                            ? '⏰ Due today'
-                            : `📅 Due in ${draft.days_until_due} days`
-                          }
-                        </strong>
-                      </div>
+                      <button
+                        onClick={() => openThreadModal(prospectDrafts)}
+                        className="btn-primary text-sm"
+                      >
+                        View Thread
+                      </button>
                     </div>
-                    <button
-                      onClick={() => {
-                        setCurrentDraft(draft);
-                        setReviewModalOpen(true);
-                      }}
-                      className="btn-primary text-sm"
-                    >
-                      👁️ Review
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>
@@ -675,7 +731,7 @@ export default function FollowUpsTab() {
                         disabled={loadingThread}
                         className="btn-primary text-xs py-2 px-4"
                       >
-                        👁️ View Thread
+                        View Thread
                       </button>
                     </td>
                   </tr>
@@ -695,6 +751,17 @@ export default function FollowUpsTab() {
           isOpen={reviewModalOpen}
           draft={currentDraft}
           onClose={() => setReviewModalOpen(false)}
+          onAction={handleDraftAction}
+          processing={processing}
+        />
+      )}
+
+      {/* Draft Thread Modal */}
+      {selectedThreadDrafts.length > 0 && (
+        <DraftThreadModal
+          isOpen={draftThreadModalOpen}
+          drafts={selectedThreadDrafts}
+          onClose={() => setDraftThreadModalOpen(false)}
           onAction={handleDraftAction}
           processing={processing}
         />
