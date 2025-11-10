@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import {
   FollowUpRow,
@@ -17,7 +17,7 @@ import DraftThreadModal from './DraftThreadModal';
 type TabType = 'pending' | 'sent';
 
 export default function FollowUpsTab() {
-  const { addRecentRun } = useAppStore();
+  const { addRecentRun, getCacheData, setCacheData, invalidateCache } = useAppStore();
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('pending');
@@ -33,6 +33,7 @@ export default function FollowUpsTab() {
   const [draftStatusFilter, setDraftStatusFilter] = useState<'needs_review' | 'ready' | 'all'>('needs_review');
   const [draftUrgencyFilter, setDraftUrgencyFilter] = useState<'all' | 'due_today' | 'overdue'>('all');
   const [draftsLoading, setDraftsLoading] = useState(false);
+  const [draftsLastUpdated, setDraftsLastUpdated] = useState<Date | null>(null);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [currentDraft, setCurrentDraft] = useState<Draft | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -45,6 +46,7 @@ export default function FollowUpsTab() {
   const [followups, setFollowUps] = useState<FollowUpRow[]>([]);
   const [stats, setStats] = useState<FollowUpsListResponse['data']['stats'] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [followupsLastUpdated, setFollowupsLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     type: 'success' | 'error' | 'info';
@@ -78,7 +80,20 @@ export default function FollowUpsTab() {
   }
 
   // Load pending drafts from n8n
-  const loadDrafts = async () => {
+  const loadDrafts = async (forceRefresh = false) => {
+    const cacheKey = `drafts-list-${draftStatusFilter}-${draftUrgencyFilter}`;
+
+    // Check cache first
+    if (!forceRefresh) {
+      const cachedData = getCacheData<{ drafts: Draft[]; stats: any; timestamp: number }>(cacheKey);
+      if (cachedData) {
+        setDrafts(cachedData.drafts);
+        setDraftStats(cachedData.stats);
+        setDraftsLastUpdated(new Date(cachedData.timestamp));
+        return;
+      }
+    }
+
     setDraftsLoading(true);
     setError(null);
 
@@ -91,13 +106,21 @@ export default function FollowUpsTab() {
       });
 
       if (result.ok && result.data) {
-        setDrafts(result.data.drafts || []);
-        setDraftStats(result.data.stats || {
+        const drafts = result.data.drafts || [];
+        const stats = result.data.stats || {
           pending_review: 0,
           approved: 0,
           due_today: 0,
           overdue: 0,
-        });
+        };
+        const timestamp = Date.now();
+
+        setDrafts(drafts);
+        setDraftStats(stats);
+        setDraftsLastUpdated(new Date(timestamp));
+
+        // Cache the data
+        setCacheData(cacheKey, { drafts, stats, timestamp });
       } else {
         throw new Error('Invalid response format');
       }
@@ -111,7 +134,20 @@ export default function FollowUpsTab() {
   };
 
   // Load follow-ups from n8n
-  const loadFollowUps = async () => {
+  const loadFollowUps = async (forceRefresh = false) => {
+    const cacheKey = `followups-list-${stageFilter}-${statusFilter}`;
+
+    // Check cache first
+    if (!forceRefresh) {
+      const cachedData = getCacheData<{ followups: FollowUpRow[]; stats: any; timestamp: number }>(cacheKey);
+      if (cachedData) {
+        setFollowUps(cachedData.followups);
+        setStats(cachedData.stats);
+        setFollowupsLastUpdated(new Date(cachedData.timestamp));
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
 
@@ -124,8 +160,16 @@ export default function FollowUpsTab() {
       });
 
       if (result.ok && result.data) {
-        setFollowUps(result.data.followups || []);
-        setStats(result.data.stats || null);
+        const followups = result.data.followups || [];
+        const stats = result.data.stats || null;
+        const timestamp = Date.now();
+
+        setFollowUps(followups);
+        setStats(stats);
+        setFollowupsLastUpdated(new Date(timestamp));
+
+        // Cache the data
+        setCacheData(cacheKey, { followups, stats, timestamp });
 
         // Save to recent runs
         const run: RecentRun = {
@@ -134,8 +178,8 @@ export default function FollowUpsTab() {
           args: { stage_filter: stageFilter, status_filter: statusFilter },
           ok: true,
           ts: new Date().toISOString(),
-          snippet: `Loaded ${result.data.followups?.length || 0} follow-ups`,
-          responseSummary: { count: result.data.followups?.length || 0, stats: result.data.stats },
+          snippet: `Loaded ${followups.length} follow-ups`,
+          responseSummary: { count: followups.length, stats },
         };
         await window.electronAPI.addRecentRun(run);
         addRecentRun(run);
@@ -164,7 +208,7 @@ export default function FollowUpsTab() {
       if (result.ok && result.data?.success) {
         showToast('success', result.data.message || 'Draft updated');
 
-        // Update local draft state immediately for thread modal
+        // Update local draft state immediately (optimistic update)
         if (draftThreadModalOpen && selectedThreadDrafts.length > 0) {
           // Update the draft status locally
           const updatedDrafts = selectedThreadDrafts.map(draft => {
@@ -193,12 +237,33 @@ export default function FollowUpsTab() {
           });
           setSelectedThreadDrafts(updatedDrafts);
 
-          // Refresh list in background (don't close modal)
-          loadDrafts();
+          // Also update the main drafts list optimistically
+          setDrafts(prevDrafts => prevDrafts.map(draft => {
+            const updated = updatedDrafts.find(d => d.id === draft.id);
+            return updated || draft;
+          }));
+
+          // Invalidate cache for next load
+          invalidateCache(`drafts-list-${draftStatusFilter}-${draftUrgencyFilter}`);
         } else {
-          // For single draft review modal, close it
+          // For single draft review modal, update optimistically and close
+          setDrafts(prevDrafts => prevDrafts.map(draft => {
+            if (draft.id === draftId) {
+              return {
+                ...draft,
+                status: action === 'mark_ready' || action === 'edit_and_save' ? 'ready' as const :
+                        action === 'skip' ? 'skipped' as const : draft.status,
+                subject: updates?.subject || draft.subject,
+                body: updates?.body || draft.body,
+                is_edited: updates ? true : draft.is_edited,
+              };
+            }
+            return draft;
+          }));
           setReviewModalOpen(false);
-          loadDrafts();
+
+          // Invalidate cache
+          invalidateCache(`drafts-list-${draftStatusFilter}-${draftUrgencyFilter}`);
         }
       } else {
         throw new Error(result.data?.message || 'Action failed');
@@ -279,7 +344,21 @@ export default function FollowUpsTab() {
       if (result.ok && result.data?.success) {
         showToast('success', result.data.message || 'Action completed');
         setThreadModalOpen(false);
-        loadFollowUps(); // Refresh list
+
+        // Optimistically update the followup status locally
+        setFollowUps(prevFollowups => prevFollowups.map(followup => {
+          if (followup.outbox_id === outboxId) {
+            return {
+              ...followup,
+              status: action === 'mark_closed' ? 'closed' as const :
+                      action === 'mark_replied' ? 'replied' as const : followup.status,
+            };
+          }
+          return followup;
+        }));
+
+        // Invalidate cache
+        invalidateCache(`followups-list-${stageFilter}-${statusFilter}`);
       } else {
         throw new Error(result.data?.message || 'Action failed');
       }
@@ -295,6 +374,10 @@ export default function FollowUpsTab() {
     setTimeout(() => setToast(null), 5000);
   };
 
+  // Debounce timer refs
+  const draftFilterDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const followupFilterDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
   // Load data when tab changes
   useEffect(() => {
     if (activeTab === 'pending') {
@@ -304,18 +387,46 @@ export default function FollowUpsTab() {
     }
   }, [activeTab]);
 
-  // Reload when filters change (sent tab only)
+  // Debounced reload when filters change (sent tab only)
   useEffect(() => {
     if (activeTab === 'sent') {
-      loadFollowUps();
+      // Clear previous timer
+      if (followupFilterDebounceRef.current) {
+        clearTimeout(followupFilterDebounceRef.current);
+      }
+
+      // Set new timer (500ms debounce)
+      followupFilterDebounceRef.current = setTimeout(() => {
+        loadFollowUps();
+      }, 500);
     }
+
+    return () => {
+      if (followupFilterDebounceRef.current) {
+        clearTimeout(followupFilterDebounceRef.current);
+      }
+    };
   }, [stageFilter, statusFilter]);
 
-  // Reload when draft filters change
+  // Debounced reload when draft filters change
   useEffect(() => {
     if (activeTab === 'pending') {
-      loadDrafts();
+      // Clear previous timer
+      if (draftFilterDebounceRef.current) {
+        clearTimeout(draftFilterDebounceRef.current);
+      }
+
+      // Set new timer (500ms debounce)
+      draftFilterDebounceRef.current = setTimeout(() => {
+        loadDrafts();
+      }, 500);
     }
+
+    return () => {
+      if (draftFilterDebounceRef.current) {
+        clearTimeout(draftFilterDebounceRef.current);
+      }
+    };
   }, [draftStatusFilter, draftUrgencyFilter]);
 
   // Helper to format stage label
@@ -359,9 +470,16 @@ export default function FollowUpsTab() {
       {/* Header with Tabs */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Follow-ups</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Follow-ups</h2>
+            {(activeTab === 'pending' ? draftsLastUpdated : followupsLastUpdated) && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Last updated: {(activeTab === 'pending' ? draftsLastUpdated : followupsLastUpdated)?.toLocaleTimeString()}
+              </p>
+            )}
+          </div>
           <button
-            onClick={() => activeTab === 'pending' ? loadDrafts() : loadFollowUps()}
+            onClick={() => activeTab === 'pending' ? loadDrafts(true) : loadFollowUps(true)}
             disabled={draftsLoading || loading}
             className="btn-secondary"
           >

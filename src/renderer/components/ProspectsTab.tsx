@@ -10,12 +10,13 @@ import { useAppStore } from '../store';
 import DraftEditorModal from './DraftEditorModal';
 
 export default function ProspectsTab() {
-  const { addRecentRun } = useAppStore();
+  const { addRecentRun, getCacheData, setCacheData, invalidateCache } = useAppStore();
 
   // State
   const [prospects, setProspects] = useState<ProspectRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [toast, setToast] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
@@ -52,7 +53,17 @@ export default function ProspectsTab() {
   }
 
   // Load prospects from n8n
-  const loadProspects = async () => {
+  const loadProspects = async (forceRefresh = false) => {
+    // Check cache first
+    if (!forceRefresh) {
+      const cachedData = getCacheData<{ prospects: ProspectRow[]; timestamp: number }>('prospects-list');
+      if (cachedData) {
+        setProspects(cachedData.prospects);
+        setLastUpdated(new Date(cachedData.timestamp));
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
 
@@ -63,7 +74,14 @@ export default function ProspectsTab() {
         search: '',
       });
 
-      setProspects(data.prospects || []);
+      const prospects = data.prospects || [];
+      const timestamp = Date.now();
+
+      setProspects(prospects);
+      setLastUpdated(new Date(timestamp));
+
+      // Cache the data
+      setCacheData('prospects-list', { prospects, timestamp });
     } catch (e) {
       const errorMsg = (e as Error).message;
       setError(errorMsg);
@@ -211,6 +229,9 @@ export default function ProspectsTab() {
         setProspects(prevProspects =>
           prevProspects.filter(p => p.id !== currentDraft.prospectId)
         );
+
+        // Invalidate cache since we modified the data
+        invalidateCache('prospects-list');
       } else if (data.data.reason === 'already_sent_recently') {
         showToast('info', 'Skipped (duplicate guard - already contacted recently)');
       } else {
@@ -218,7 +239,7 @@ export default function ProspectsTab() {
       }
 
       setEditorOpen(false);
-      loadProspects(); // Refresh list in background
+      // No need to reload - we already removed the prospect optimistically
     } catch (e) {
       const errorMsg = (e as Error).message;
       showToast('error', `Send failed: ${errorMsg}`);
@@ -242,11 +263,18 @@ export default function ProspectsTab() {
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          Prospects
-        </h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            Prospects
+          </h2>
+          {lastUpdated && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </p>
+          )}
+        </div>
         <button
-          onClick={loadProspects}
+          onClick={() => loadProspects(true)}
           disabled={loading}
           className="btn-secondary"
         >

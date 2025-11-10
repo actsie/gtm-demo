@@ -6,6 +6,14 @@ import { getSettings } from './storage';
 const REQUEST_TIMEOUT = 20000; // 20 seconds for webhook requests (AI generation takes time)
 const RETRY_DELAY = 500; // 500ms
 
+// Request deduplication - track in-flight requests
+const inFlightRequests = new Map<string, Promise<NetworkResponse>>();
+
+// Generate a unique key for request deduplication
+function getRequestKey(method: string, endpoint: string, body?: unknown): string {
+  return `${method.toUpperCase()}:${endpoint}${body ? ':' + JSON.stringify(body) : ''}`;
+}
+
 // Sanitize error messages to avoid leaking secrets
 function sanitizeError(message: string, secret: string | null): string {
   if (!secret) return message;
@@ -95,14 +103,26 @@ export async function makeNetworkRequest(
   endpoint: string,
   body?: unknown
 ): Promise<NetworkResponse> {
-  try {
-    // Check if endpoint is a full URL (for custom webhooks like EmailTab)
-    const isFullUrl = endpoint.startsWith('http://') || endpoint.startsWith('https://');
+  // Check for in-flight request with same parameters
+  const requestKey = getRequestKey(method, endpoint, body);
+  const existingRequest = inFlightRequests.get(requestKey);
 
-    // Always get settings and secret
-    const settings = getSettings();
-    const secretResult = await getSecret();
-    const secret = secretResult.secret;
+  if (existingRequest) {
+    // Return the existing in-flight request
+    console.log(`Deduplicating request: ${requestKey}`);
+    return existingRequest;
+  }
+
+  // Create new request promise
+  const requestPromise = (async () => {
+    try {
+      // Check if endpoint is a full URL (for custom webhooks like EmailTab)
+      const isFullUrl = endpoint.startsWith('http://') || endpoint.startsWith('https://');
+
+      // Always get settings and secret
+      const settings = getSettings();
+      const secretResult = await getSecret();
+      const secret = secretResult.secret;
 
     let url: string;
     let isN8nUrl = false; // Track if this is an n8n URL (needs auth)
@@ -159,14 +179,30 @@ export async function makeNetworkRequest(
       options.body = JSON.stringify(body);
     }
 
-    // Make request with retry
-    return await makeRequestWithRetry(url, options, secret);
-  } catch (error) {
-    return {
-      ok: false,
-      status: 0,
-      body: { error: (error as Error).message },
-      raw: (error as Error).message,
-    };
+      // Make request with retry
+      return await makeRequestWithRetry(url, options, secret);
+    } catch (error) {
+      return {
+        ok: false,
+        status: 0,
+        body: { error: (error as Error).message },
+        raw: (error as Error).message,
+      };
+    }
+  })();
+
+  // Store the request promise
+  inFlightRequests.set(requestKey, requestPromise);
+
+  // Clean up after request completes (success or failure)
+  try {
+    const result = await requestPromise;
+    return result;
+  } finally {
+    // Remove from in-flight requests after a small delay
+    // This prevents rapid consecutive identical requests from being deduplicated
+    setTimeout(() => {
+      inFlightRequests.delete(requestKey);
+    }, 100);
   }
 }
